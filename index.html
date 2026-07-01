@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seller Visit Planner</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16181d;--ink-2:#3a3f4b;--muted:#7c8597;--paper:#fff;--panel:#f6f7f9;--line:#e3e6ec;--line-2:#eef0f4;
+    --accent:#ff5a1f;--accent-soft:#fff0e9;--indigo:#2c2c54;--good:#1f9d6b;
+    --shadow:0 1px 2px rgba(16,18,29,.06),0 8px 24px rgba(16,18,29,.06);--rail:360px;
+  }
+  *{box-sizing:border-box}html,body{height:100%}
+  body{margin:0;font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--panel);-webkit-font-smoothing:antialiased;overflow:hidden}
+  .app{display:grid;grid-template-columns:var(--rail) 1fr;grid-template-rows:auto auto 1fr;height:100vh;grid-template-areas:"top top" "filt filt" "rail map"}
+  /* top */
+  .top{grid-area:top;display:flex;align-items:center;gap:16px;padding:11px 18px;background:var(--paper);border-bottom:1px solid var(--line);z-index:1200}
+  .brand{display:flex;align-items:baseline;gap:9px;min-width:max-content}
+  .brand h1{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;box-shadow:0 0 0 3px var(--accent-soft)}
+  .chips{display:flex;gap:7px;flex:1;overflow:hidden}
+  .chip{display:flex;flex-direction:column;line-height:1.1;padding:5px 11px;background:var(--panel);border:1px solid var(--line);border-radius:9px;min-width:max-content}
+  .chip b{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;letter-spacing:-.02em}
+  .chip span{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:1px}
+  .tools{display:flex;gap:7px;align-items:center;margin-left:auto}
+  .btn{font:inherit;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:7px 12px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.15s;white-space:nowrap}
+  .btn:hover{border-color:#cfd4de;background:var(--panel)}
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}.btn.primary:hover{background:#000}
+  .btn.dl{background:var(--accent);color:#fff;border-color:var(--accent)}.btn.dl:hover{background:#e64e16}
+  .btn svg{width:14px;height:14px}
+  /* filter strip */
+  .filt{grid-area:filt;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:9px 18px;background:var(--paper);border-bottom:1px solid var(--line);z-index:1100}
+  .fg{display:flex;align-items:center;gap:7px}
+  .fg .lab{font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+  .search-wrap{position:relative}
+  .search-wrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--muted)}
+  .search-wrap input{width:210px;padding:7px 10px 7px 31px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:12.5px;background:var(--panel)}
+  .search-wrap input:focus{outline:none;border-color:var(--accent);background:#fff}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{font:inherit;font-size:11.5px;font-weight:600;padding:6px 11px;border:none;background:var(--paper);color:var(--ink-2);cursor:pointer}
+  .seg button.on{background:var(--ink);color:#fff}
+  .toggle{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;user-select:none}
+  .toggle input{accent-color:var(--accent);width:15px;height:15px}
+  .vol{display:flex;align-items:center;gap:8px}
+  .vol input[type=range]{width:120px;accent-color:var(--accent)}
+  .vol .val{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;color:var(--ink);min-width:90px}
+  .statesbtn{position:relative}
+  .statesbtn .menu{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:8px;display:none;grid-template-columns:repeat(3,1fr);gap:4px;z-index:1300;max-height:260px;overflow:auto;width:330px}
+  .statesbtn.open .menu{display:grid}
+  .stpill{font-size:11px;font-weight:600;padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+  .stpill.on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+  .areabtn.on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+  .activechip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;background:var(--accent-soft);color:var(--accent);border:1px solid #ffd8c7;border-radius:20px;padding:4px 10px}
+  .activechip .x{cursor:pointer;font-weight:700}
+  /* rail */
+  .rail{grid-area:rail;background:var(--paper);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .tabs{display:flex;border-bottom:1px solid var(--line)}
+  .tabs button{flex:1;font:inherit;font-size:12.5px;font-weight:600;padding:10px;border:none;background:var(--paper);color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+  .tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+  .rail-head{display:flex;align-items:center;justify-content:space-between;padding:7px 16px;border-bottom:1px solid var(--line-2)}
+  .rail-head .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+  .list{flex:1;overflow-y:auto;min-height:0}
+  .city,.srow{border-bottom:1px solid var(--line-2);cursor:pointer}
+  .city{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:9px 16px}
+  .city:hover,.srow:hover{background:var(--panel)}.city.active{background:var(--accent-soft)}
+  .city .rank{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-align:right}
+  .city .name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .city .sub{font-size:10px;color:var(--muted);margin-top:1px}
+  .bar{height:4px;border-radius:3px;margin-top:5px;min-width:3px;background:var(--accent)}
+  .city .right{display:flex;align-items:center;gap:8px}
+  .metricval{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13.5px;text-align:right;line-height:1.05}
+  .metricval small{display:block;font-size:9px;color:var(--muted);font-weight:500}
+  .add{width:23px;height:23px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink-2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex:none}
+  .add:hover{border-color:var(--accent);color:var(--accent)}.city.planned .add{background:var(--accent);border-color:var(--accent);color:#fff}
+  /* seller rows (sellers tab + drilldown) */
+  .srow{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:8px 16px}
+  .srow-main{min-width:0}
+  .srow-mail{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .srow-mail.none{color:var(--muted);font-style:italic}
+  .srow-sub{font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .srow-vol{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;padding:2px 7px;border-radius:6px;background:var(--panel)}
+  .srow-loc{width:25px;height:25px;border:1px solid var(--line);background:#fff;border-radius:7px;cursor:pointer;color:var(--ink-2);display:flex;align-items:center;justify-content:center;flex:none}
+  .srow-loc:hover{border-color:var(--accent);color:var(--accent)}.srow-loc svg{width:13px;height:13px}
+  /* detail */
+  .detail{flex:1;min-height:0;display:none;flex-direction:column}
+  .rail.detail-open .tabs,.rail.detail-open .rail-head,.rail.detail-open .list{display:none}
+  .rail.detail-open .detail{display:flex}
+  .detail-head{display:flex;align-items:center;gap:10px;padding:12px 14px 10px;border-bottom:1px solid var(--line-2)}
+  .detail-head .back{width:30px;height:30px;border:1px solid var(--line);background:#fff;border-radius:9px;cursor:pointer;font-size:15px;color:var(--ink-2);display:flex;align-items:center;justify-content:center}
+  .detail-head .dt-city{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px}
+  .detail-head .dt-sub{font-size:11px;color:var(--muted)}
+  .detail-actions{display:flex;gap:7px;padding:9px 14px;border-bottom:1px solid var(--line-2)}
+  .detail-actions .btn{flex:1;justify-content:center}
+  .detail-list{flex:1;overflow-y:auto;min-height:0}
+  /* plan */
+  .plan{border-top:1px solid var(--line);background:var(--panel)}
+  .plan-head{display:flex;align-items:center;justify-content:space-between;padding:9px 16px;cursor:pointer}
+  .plan-head .t{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12.5px;display:flex;align-items:center;gap:7px}
+  .plan-head .badge{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:var(--accent);color:#fff;padding:1px 7px;border-radius:20px}
+  .plan-body{max-height:0;overflow:hidden;transition:max-height .25s}.plan.open .plan-body{max-height:300px;overflow-y:auto}
+  .plan-row{display:flex;align-items:center;justify-content:space-between;padding:6px 16px;font-size:12px;border-top:1px solid var(--line-2)}
+  .plan-row .x{cursor:pointer;color:var(--muted);font-weight:700}.plan-row .x:hover{color:var(--accent)}
+  .plan-foot{padding:9px 16px;display:flex;gap:7px}.plan-empty{padding:13px 16px;font-size:11.5px;color:var(--muted)}
+  /* map */
+  .map{grid-area:map;position:relative}#map{position:absolute;inset:0;background:#e8ebf0}
+  .legend{position:absolute;left:12px;bottom:12px;z-index:500;background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:10px;padding:9px 11px;box-shadow:var(--shadow);font-size:10.5px}
+  .legend .lh{font-weight:600;font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:5px}
+  .legend .row{display:flex;align-items:center;gap:6px;margin:2px 0;color:var(--ink-2)}
+  .legend i{width:11px;height:11px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.12)}
+  .approx-note{margin-top:6px;padding-top:5px;border-top:1px solid var(--line-2);color:var(--muted);max-width:175px;line-height:1.3}
+  .leaflet-popup-content{font-family:Inter,sans-serif;margin:10px 12px;font-size:12px;line-height:1.5}
+  .pp-city{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13.5px}
+  .pp-mail{color:var(--accent);font-weight:600;word-break:break-all}
+  .pp-vol{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12.5px;margin-top:3px}
+  .pp-meta{color:var(--muted);font-size:10.5px;margin-top:2px}.pp-addr{color:var(--ink-2);font-size:10.5px;margin-top:5px;padding-top:5px;border-top:1px solid var(--line-2)}
+  .pp-tag{display:inline-block;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:5px;margin-top:5px}
+  .pp-tag.exact{background:#e8f6ef;color:var(--good)}.pp-tag.approx{background:#fff0e9;color:var(--accent)}
+  .marker-dot{border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+  .cluster{background:rgba(255,90,31,.18);border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .cluster div{background:var(--accent);color:#fff;border-radius:50%;min-width:36px;height:36px;padding:0 4px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;border:2px solid #fff}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;z-index:3000;transition:transform .25s;box-shadow:var(--shadow)}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .empty-state{position:absolute;inset:0;z-index:800;display:flex;align-items:center;justify-content:center;background:rgba(246,247,249,.82);backdrop-filter:blur(2px)}
+  .es-card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:32px 34px;max-width:420px;text-align:center}
+  .es-icon{width:52px;height:52px;border-radius:14px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+  .es-icon svg{width:26px;height:26px}
+  .es-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;margin-bottom:8px}
+  .es-sub{font-size:12.5px;color:var(--ink-2);line-height:1.5;margin-bottom:18px}
+  .es-priv{font-size:11px;color:var(--muted);margin-top:16px;line-height:1.4}
+  body.dragging .empty-state{background:rgba(255,90,31,.10)}
+  body.dragging .es-card{border-color:var(--accent);border-style:dashed}
+  @media (max-width:900px){.app{grid-template-columns:1fr;grid-template-rows:auto auto 40vh 1fr;grid-template-areas:"top" "filt" "map" "rail"}.rail{border-right:none;border-top:1px solid var(--line)}.chips{display:none}:root{--rail:auto}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><span class="dot"></span><h1>Seller Visit Planner</h1></div>
+    <div class="chips" id="chips"></div>
+    <div class="tools">
+      <button class="btn dl" id="dlCsv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 12l-4-4m4 4l4-4"/><path d="M3 15v4a2 2 0 002 2h14a2 2 0 002-2v-4"/></svg>CSV</button>
+      <button class="btn dl" id="dlXlsx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 12l-4-4m4 4l4-4"/><path d="M3 15v4a2 2 0 002 2h14a2 2 0 002-2v-4"/></svg>Excel</button>
+      <button class="btn" id="resetBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5"/></svg>Reset</button>
+      <button class="btn primary" id="uploadBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 0L8 7m4-4l4 4"/><path d="M3 15v4a2 2 0 002 2h14a2 2 0 002-2v-4"/></svg>Upload</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+    </div>
+  </header>
+
+  <div class="filt" id="filt">
+    <div class="fg search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input id="search" placeholder="Search city, email, PIN…" autocomplete="off">
+    </div>
+    <div class="fg"><span class="lab">Rank</span>
+      <div class="seg" id="metric"><button data-m="vol" class="on">Volume</button><button data-m="count">Sellers</button></div>
+    </div>
+    <label class="toggle"><input type="checkbox" id="activeOnly">Active only (vol&gt;0)</label>
+    <div class="fg"><span class="lab">Accuracy</span>
+      <div class="seg" id="acc"><button data-a="all" class="on">All</button><button data-a="exact">Exact</button><button data-a="approx">Approx</button></div>
+    </div>
+    <div class="fg vol"><span class="lab">Volume</span>
+      <input type="range" id="vMin" min="0" value="0"><input type="range" id="vMax" min="0">
+      <span class="val" id="vVal"></span>
+    </div>
+    <div class="fg statesbtn" id="statesBtn">
+      <button class="btn" id="statesToggle">States: All ▾</button>
+      <div class="menu" id="statesMenu"></div>
+    </div>
+    <button class="btn areabtn" id="areaBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3zM14 14h7v7h-7z"/><path d="M10 6.5h4M6.5 10v4"/></svg>Select area</button>
+    <span class="activechip" id="cityChip" style="display:none"></span>
+    <span class="activechip" id="areaChip" style="display:none"></span>
+  </div>
+
+  <aside class="rail">
+    <div class="tabs" id="tabs"><button data-t="cities" class="on">Cities</button><button data-t="sellers">Sellers</button></div>
+    <div class="rail-head"><span class="lbl" id="listLbl">Cities by total volume</span><span class="lbl" id="listCount"></span></div>
+    <div class="list" id="list"></div>
+    <div class="detail" id="detail">
+      <div class="detail-head"><button class="back" id="detailBack">←</button><div><div class="dt-city" id="dtCity"></div><div class="dt-sub" id="dtSub"></div></div></div>
+      <div class="detail-actions"><button class="btn primary" id="copyAll"></button><button class="btn" id="dlCity">Download</button></div>
+      <div class="detail-list" id="detailList"></div>
+    </div>
+    <div class="plan" id="plan">
+      <div class="plan-head" id="planHead"><div class="t"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 1118 0z"/><circle cx="12" cy="10" r="3"/></svg>Visit plan <span class="badge" id="planBadge">0</span></div><span id="planChevron" style="color:var(--muted);font-size:12px">▴</span></div>
+      <div class="plan-body" id="planBody"></div>
+    </div>
+  </aside>
+
+  <div class="map"><div id="map"></div>
+    <div class="legend" id="legend"></div>
+    <div class="empty-state" id="emptyState">
+      <div class="es-card">
+        <div class="es-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4m0 0L7 9m5-5l5 5"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg></div>
+        <div class="es-title">Upload your seller file to begin</div>
+        <div class="es-sub">Drag &amp; drop an .xlsx or .csv here, or click below. It needs an <b>Address</b> column (plus optional Email and Volume).</div>
+        <button class="btn dl" id="emptyUpload" style="font-size:13px;padding:10px 18px">Choose file</button>
+        <div class="es-priv">🔒 Your file is parsed entirely in your browser — nothing is uploaded, sent, or stored anywhere.</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ===== Geocoder for re-uploads ===== */
+const CITY={"delhi": [28.6139, 77.209], "new delhi": [28.6139, 77.209], "bangalore": [12.9716, 77.5946], "bengaluru": [12.9716, 77.5946], "mumbai": [19.076, 72.8777], "navi mumbai": [19.033, 73.0297], "greater thane": [19.2183, 72.9781], "thane": [19.2183, 72.9781], "kolkata": [22.5726, 88.3639], "surat": [21.1702, 72.8311], "chennai": [13.0827, 80.2707], "jaipur": [26.9124, 75.7873], "pune": [18.5204, 73.8567], "hyderabad": [17.385, 78.4867], "noida": [28.5355, 77.391], "gurgaon": [28.4595, 77.0266], "gurugram": [28.4595, 77.0266], "ahmedabad": [23.0225, 72.5714], "ghaziabad": [28.6692, 77.4538], "indore": [22.7196, 75.8577], "faridabad": [28.4089, 77.3178], "ludhiana": [30.901, 75.8573], "lucknow": [26.8467, 80.9462], "agra": [27.1767, 78.0081], "kozhikode": [11.2588, 75.7804], "coimbatore": [11.0168, 76.9558], "bhopal": [23.2599, 77.4126], "patna": [25.5941, 85.1376], "barasat": [22.7211, 88.481], "tirupur": [11.1085, 77.3411], "amritsar": [31.634, 74.8723], "nagpur": [21.1458, 79.0882], "kota": [25.2138, 75.8648], "varanasi": [25.3176, 82.9739], "kanpur": [26.4499, 80.3319], "kanpur nagar": [26.4499, 80.3319], "jodhpur": [26.2389, 73.0243], "bilaspur": [22.0797, 82.1409], "nashik": [19.9975, 73.7898], "cochin": [9.9312, 76.2673], "kochi": [9.9312, 76.2673], "ernakulam": [9.9816, 76.2999], "baruipur": [22.36, 88.43], "sikar": [27.6094, 75.1399], "madurai": [9.9252, 78.1198], "barrackpore": [22.76, 88.37], "guwahati": [26.1445, 91.7362], "vadodara": [22.3072, 73.1812], "rajkot": [22.3039, 70.8022], "jabalpur": [23.1815, 79.9864], "meerut": [28.9845, 77.7064], "gwalior": [26.2183, 78.1828], "vijayawada": [16.5062, 80.648], "jalandhar": [31.326, 75.5762], "raipur": [21.2514, 81.6296], "mysore": [12.2958, 76.6394], "mysuru": [12.2958, 76.6394], "mangalore": [12.9141, 74.856], "hubli": [15.3647, 75.124], "belgaum": [15.8497, 74.4977], "solapur": [17.6599, 75.9064], "kolhapur": [16.705, 74.2433], "sangli": [16.8524, 74.5815], "aurangabad": [19.8762, 75.3433], "nanded": [19.1383, 77.321], "amravati": [20.9374, 77.7796], "wardha": [20.7453, 78.6022], "gondia": [21.4624, 80.1961], "karad": [17.289, 74.183], "malegaon": [20.5579, 74.5089], "pandharpur": [17.6792, 75.33], "jamner": [20.8, 75.7833], "dehradun": [30.3165, 78.0322], "haridwar": [29.9457, 78.1642], "rudrapur": [28.9784, 79.414], "udham singh nagar": [28.975, 79.4], "solan": [30.9045, 77.0967], "ranchi": [23.3441, 85.3096], "jamshedpur": [22.8046, 86.2029], "dhanbad": [23.7957, 86.4304], "hazaribagh": [23.9925, 85.3637], "giridih": [24.185, 86.3], "bhubaneshwar": [20.2961, 85.8245], "bhubaneswar": [20.2961, 85.8245], "bargarh": [21.3333, 83.6167], "jajapur": [20.85, 86.3333], "attabira": [21.15, 83.75], "raigarh": [21.8974, 83.3947], "bhilwara": [25.347, 74.6364], "udaipur": [24.5854, 73.7125], "ajmer": [26.4499, 74.6399], "alwar": [27.553, 76.6346], "bhiwadi": [28.21, 76.86], "pali": [25.7711, 73.3234], "barmer": [25.7521, 71.3967], "sindhari": [25.68, 71.93], "hanumangarh": [29.58, 74.32], "ganganagar": [29.9094, 73.88], "sri ganganagar": [29.9094, 73.88], "makrana": [27.04, 74.72], "jhunjhunu": [28.1289, 75.3953], "nagda": [23.45, 75.4167], "ujjain": [23.1765, 75.7885], "mandsaur": [24.0768, 75.0683], "satna": [24.5667, 80.8322], "vidisha": [23.5251, 77.8081], "guna": [24.65, 77.3], "khandwa": [21.8257, 76.3526], "morena": [26.496, 78.001], "sanand": [23.0, 72.3833], "anand": [22.5645, 72.9289], "mahesana": [23.588, 72.3693], "mehsana": [23.588, 72.3693], "gandhinagar": [23.2156, 72.6369], "gandhidham": [23.0753, 70.1337], "jamnagar": [22.4707, 70.0577], "bhavnagar": [21.7645, 72.1519], "junagadh": [21.5222, 70.4579], "morbi": [22.8173, 70.8377], "porbandar": [21.6417, 69.6293], "halvad": [23.0167, 71.1833], "vapi": [20.3893, 72.9106], "palanpur": [24.1722, 72.4344], "hosur": [12.7409, 77.8253], "salem": [11.6643, 78.146], "erode": [11.341, 77.7172], "karur": [10.9601, 78.0766], "tirunelveli": [8.7139, 77.7567], "tiruchi": [10.7905, 78.7047], "tiruvallur": [13.1431, 79.908], "tiruppattur": [12.4961, 78.5733], "nellore": [14.4426, 79.9865], "tirupati": [13.6288, 79.4192], "guntur": [16.3067, 80.4365], "kurnool": [15.8281, 78.0373], "nandyal": [15.4777, 78.4873], "anantapur": [14.6819, 77.6006], "cuddapah": [14.4673, 78.8242], "chirala": [15.824, 80.352], "piduguralla": [16.4833, 79.8833], "prakasam": [15.5, 79.5], "rajam": [18.45, 83.6], "tuni": [17.35, 82.55], "tanuku": [16.75, 81.6833], "west godavari": [16.7, 81.1], "nizamabad": [18.6725, 78.0941], "gulbarga": [17.3297, 76.8343], "bhatkal": [13.9853, 74.555], "thalassery": [11.748, 75.4929], "thamarassery": [11.4167, 75.9333], "perambra": [11.5667, 75.7667], "kallachi": [11.65, 75.7], "areacode": [11.25, 76.0], "valanchery": [10.89, 76.07], "edappal": [10.8, 76.0], "palakkad": [10.7867, 76.6548], "sultan bathery": [11.66, 76.26], "wayanad": [11.685, 76.132], "kollam": [8.8932, 76.6141], "kottayam": [9.5916, 76.5222], "kayamkulam": [9.18, 76.5], "alappuzha": [9.4981, 76.3388], "tiruvalla": [9.3833, 76.5667], "thiruvananthapuram": [8.5241, 76.9366], "neyyattinkara": [8.4, 77.0833], "aluva": [10.1004, 76.357], "angamaly": [10.196, 76.386], "muvattupuzha": [9.9833, 76.5833], "vaikom": [9.75, 76.4], "elamakkara": [10.02, 76.29], "kazhakkoottam": [8.5667, 76.8833], "palai": [9.71, 76.69], "sankaramangalam": [9.0, 76.7], "sankalp": [24.1722, 72.4344], "ambasamudram": [8.71, 77.45], "avinashi": [11.19, 77.27], "ooty": [11.4102, 76.695], "agartala": [23.8315, 91.2868], "tezpur": [26.6338, 92.8], "nagaon": [26.35, 92.68], "barpeta": [26.32, 91.0], "rangia": [26.45, 91.63], "duliajan": [27.37, 95.32], "siliguri": [26.7271, 88.3953], "darjeeling": [27.036, 88.2627], "cooch behar": [26.32, 89.45], "malda": [25.0, 88.14], "bankura": [23.2324, 87.0728], "birbhum": [23.84, 87.62], "katwa": [23.65, 88.13], "ranaghat": [23.18, 88.58], "plassey": [23.8, 88.25], "hanskhali": [23.25, 88.6], "haringhata": [22.96, 88.57], "bagnan": [22.47, 87.97], "bally": [22.65, 88.34], "maheshtala": [22.5, 88.25], "south 24 parganas": [22.16, 88.43], "north 24 parganas": [22.62, 88.4], "west midnapore": [22.42, 87.32], "hooghly": [22.9, 88.39], "panskura": [22.43, 87.7], "bajkul": [22.07, 87.85], "udaynarayanpur": [22.65, 87.98], "joypul": [22.8, 87.9], "behrampur": [24.1, 88.25], "berhampur": [24.1, 88.25], "katihar": [25.54, 87.58], "purnia": [25.78, 87.47], "darbhanga": [26.1542, 85.8918], "samastipur": [25.86, 85.78], "chhapra": [25.78, 84.73], "siwan": [26.22, 84.36], "arrah": [25.556, 84.663], "gaya": [24.7955, 85.0002], "nawada": [24.88, 85.54], "east champaran": [26.65, 84.91], "dholi": [25.92, 85.6], "pavapuri": [25.08, 85.42], "sikandarpur": [26.03, 84.07], "saharanpur": [29.968, 77.546], "muzaffarnagar": [29.4727, 77.7085], "moradabad": [28.8386, 78.7733], "bareilly": [28.367, 79.4304], "shahjahanpur": [27.883, 79.912], "budaun": [28.036, 79.13], "hapur": [28.73, 77.78], "modinagar": [28.83, 77.58], "dhampur": [29.31, 78.51], "hathras": [27.6, 78.05], "aligarh": [27.8974, 78.088], "farrukhabad": [27.4, 79.58], "kannauj": [27.05, 79.92], "etawah": [26.78, 79.02], "fatehpur": [25.93, 80.81], "allahabad": [25.4358, 81.8463], "prayagraj": [25.4358, 81.8463], "mirzapur": [25.14, 82.57], "azamgarh": [26.06, 83.18], "gorakhpur": [26.7606, 83.3732], "deoria": [26.5, 83.79], "sultanpur": [26.26, 82.07], "balrampur": [27.43, 82.18], "nanpara": [27.86, 81.5], "manda": [25.0, 81.7], "tiwari": [26.85, 80.95], "bahadurgarh": [28.69, 76.92], "rohtak": [28.8955, 76.6066], "sonipat": [28.9931, 77.0151], "panipat": [29.3909, 76.9635], "karnal": [29.6857, 76.9905], "kaithal": [29.8, 76.4], "kurukshetra": [29.9695, 76.8783], "jind": [29.316, 76.314], "sirsa": [29.5349, 75.028], "fatehabad": [29.51, 75.45], "bhiwani": [28.793, 76.139], "yamuna nagar": [30.129, 77.288], "panchkula": [30.6942, 76.8606], "ambala": [30.3782, 76.7767], "zirakpur": [30.6425, 76.8173], "mohali": [30.7046, 76.7179], "chandigarh": [30.7333, 76.7794], "rajpura": [30.484, 76.594], "patiala": [30.3398, 76.3869], "bathinda": [30.211, 74.9455], "batala": [31.8186, 75.2028], "gurdaspur": [32.0419, 75.4053], "pathankot": [32.2643, 75.6421], "hoshiarpur": [31.532, 75.911], "mandi gobindgarh": [30.67, 76.3], "rupnagar": [30.967, 76.523], "ropar": [30.967, 76.523], "lar ganderbal": [34.23, 74.78], "ganderbal": [34.23, 74.78], "dhaka": [28.75, 84.4], "bilaspur - cg": [22.0797, 82.1409]},PIN2={"11": [28.65, 77.23], "12": [28.9, 76.7], "13": [30.3, 76.8], "14": [30.9, 75.85], "15": [31.3, 75.0], "16": [30.74, 76.79], "17": [31.1, 77.17], "18": [33.0, 75.0], "19": [34.0, 74.8], "20": [29.0, 77.7], "21": [28.8, 78.8], "22": [28.4, 79.4], "23": [26.8, 80.9], "24": [26.8, 81.5], "25": [27.6, 78.0], "26": [26.45, 80.33], "27": [26.0, 82.0], "28": [26.0, 83.3], "30": [26.9, 75.8], "31": [28.5, 73.5], "32": [26.3, 73.0], "33": [25.0, 74.6], "34": [25.2, 75.8], "36": [23.0, 72.6], "37": [22.3, 70.8], "38": [23.0, 72.6], "39": [21.5, 73.0], "40": [19.0, 72.85], "41": [18.9, 73.8], "42": [18.5, 74.0], "43": [20.0, 76.0], "44": [21.15, 79.09], "45": [22.7, 75.85], "46": [23.2, 77.4], "47": [23.0, 79.5], "48": [23.25, 77.4], "49": [21.25, 81.6], "50": [17.4, 78.47], "51": [16.5, 80.6], "52": [14.4, 79.0], "53": [17.7, 83.2], "56": [12.97, 77.59], "57": [12.5, 76.5], "58": [15.4, 75.1], "59": [17.3, 76.8], "60": [13.08, 80.27], "61": [11.4, 78.1], "62": [9.9, 78.1], "63": [8.7, 77.7], "64": [10.8, 79.1], "67": [11.25, 75.78], "68": [10.0, 76.3], "69": [8.7, 76.95], "70": [22.57, 88.36], "71": [22.6, 88.4], "72": [23.2, 87.8], "73": [26.5, 88.4], "74": [22.6, 88.4], "75": [20.27, 85.84], "76": [21.0, 84.0], "77": [19.3, 84.8], "78": [26.14, 91.74], "79": [27.0, 93.6], "80": [25.6, 85.1], "81": [25.4, 86.1], "82": [25.0, 84.5], "83": [23.6, 85.3], "84": [25.5, 84.5], "85": [26.1, 85.9]},STATE_NAME={"AP": "Andhra Pradesh", "AR": "Arunachal Pradesh", "AS": "Assam", "BR": "Bihar", "CG": "Chhattisgarh", "GA": "Goa", "GJ": "Gujarat", "HR": "Haryana", "HP": "Himachal Pradesh", "JH": "Jharkhand", "JK": "Jammu & Kashmir", "KA": "Karnataka", "KL": "Kerala", "MP": "Madhya Pradesh", "MH": "Maharashtra", "MN": "Manipur", "ML": "Meghalaya", "MZ": "Mizoram", "NL": "Nagaland", "OD": "Odisha", "OR": "Odisha", "PB": "Punjab", "RJ": "Rajasthan", "SK": "Sikkim", "TN": "Tamil Nadu", "TS": "Telangana", "TR": "Tripura", "UP": "Uttar Pradesh", "UK": "Uttarakhand", "UT": "Uttarakhand", "WB": "West Bengal", "DL": "Delhi", "CH": "Chandigarh", "PY": "Puducherry"},FULLNAME={"andhra pradesh": "AP", "arunachal pradesh": "AR", "assam": "AS", "bihar": "BR", "chhattisgarh": "CG", "chattisgarh": "CG", "goa": "GA", "gujarat": "GJ", "haryana": "HR", "himachal pradesh": "HP", "jharkhand": "JH", "jammu & kashmir": "JK", "jammu and kashmir": "JK", "karnataka": "KA", "kerala": "KL", "madhya pradesh": "MP", "maharashtra": "MH", "manipur": "MN", "meghalaya": "ML", "mizoram": "MZ", "nagaland": "NL", "odisha": "OD", "orissa": "OD", "punjab": "PB", "rajasthan": "RJ", "sikkim": "SK", "tamil nadu": "TN", "tamilnadu": "TN", "telangana": "TS", "tripura": "TR", "uttar pradesh": "UP", "uttarakhand": "UK", "uttaranchal": "UK", "west bengal": "WB", "delhi": "DL", "new delhi": "DL", "chandigarh": "CH", "puducherry": "PY", "pondicherry": "PY"};
+const STATE_CODES=new Set(Object.keys(STATE_NAME).concat(['OR','UT']));
+const CITY_STATES={DL:'Delhi',CH:'Chandigarh',PY:'Puducherry'};
+function parseAddress(addr){addr=String(addr||'');const pins=addr.match(/\b(\d{6})\b/g);const pin=pins?pins[pins.length-1]:'';const t=addr.split(',').map(x=>x.trim());let state=null,city=null;
+  for(let i=0;i<t.length;i++){const u=t[i].toUpperCase(),l=t[i].toLowerCase();if(STATE_CODES.has(u))state=u;else if(FULLNAME[l])state=FULLNAME[l];else continue;
+    for(let j=i-1;j>=0;j--){const p=t[j].trim();if(p&&!/^\d+$/.test(p)&&!STATE_CODES.has(p.toUpperCase())&&!FULLNAME[p.toLowerCase()]&&p.length>=2){city=p;break;}}break;}
+  if(!city&&CITY_STATES[state])city=CITY_STATES[state];return{city,state,pin};}
+function geocode(r){const ck=(r.city||'').toLowerCase().trim();if(CITY[ck])return{lat:CITY[ck][0],lng:CITY[ck][1],exact:true};
+  if(r.pin&&PIN2[r.pin.slice(0,2)]){const c=PIN2[r.pin.slice(0,2)];return{lat:c[0],lng:c[1],exact:false};}return null;}
+const jit=v=>v+(Math.random()-0.5)*0.04, title=s=>(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+function buildFromRows(rows){const out=[];for(const r of rows){const ks=Object.keys(r);
+  const aK=ks.find(k=>/address/i.test(k))||ks.find(k=>typeof r[k]==='string'&&r[k].length>25);
+  const mK=ks.find(k=>/mail|email/i.test(k));const vK=ks.find(k=>/volume|gmv|orders|units|sales|qty/i.test(k));
+  const addr=aK?r[aK]:null;if(!addr)continue;const p=parseAddress(addr);const g=geocode(p);if(!g)continue;
+  let vol=vK?r[vK]:0;vol=(vol===''||vol==null||isNaN(+vol))?0:+vol;
+  out.push({mail:mK?(r[mK]||''):'',addr:String(addr).trim(),vol:Math.round(vol),city:p.city?title(p.city):'Unknown',
+    state:STATE_NAME[p.state]||p.state||'Unknown',sc:p.state||'',pin:p.pin||'',lat:+jit(g.lat).toFixed(5),lng:+jit(g.lng).toFixed(5),exact:g.exact});}
+  return out;}
+
+/* ===== State ===== */
+let DATA=[];   /* no seller data ships with this file — you upload it each session, processed 100% in your browser */
+const fmt=n=>n>=1000?(n/1000).toFixed(n>=10000?0:1)+'k':String(n);
+const F={q:'',metric:'vol',activeOnly:false,acc:'all',vMin:0,vMax:0,states:new Set(),area:null,city:null};
+let view='cities';
+const plan=new Map();
+const markerByUid={};
+let maxVol=1;
+
+/* ===== Map ===== */
+const map=L.map('map',{zoomControl:true}).setView([22.5,80],5);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:18,attribution:'© OpenStreetMap, © CARTO'}).addTo(map);
+const drawn=new L.FeatureGroup().addTo(map);
+const drawer=new L.Draw.Rectangle(map,{shapeOptions:{color:'#ff5a1f',weight:2,fillOpacity:.06}});
+map.on(L.Draw.Event.CREATED,e=>{drawn.clearLayers();drawn.addLayer(e.layer);F.area=e.layer.getBounds();
+  document.getElementById('areaBtn').classList.remove('on');applyFilters();showAreaChip();});
+function volColor(v){return v>=2000?'#c8340a':v>=500?'#ff5a1f':v>=100?'#ff9d6e':v>=1?'#ffd2bc':'#cbd2dd';}
+function volSize(v){return v>=2000?22:v>=500?17:v>=100?12:v>=1?9:6;}
+function cntColor(c){return c>=25?'#c8340a':c>=10?'#ff5a1f':c>=3?'#ff9d6e':'#ffb892';}
+function cntSize(c){return c>=25?15:c>=10?12:c>=3?10:8;}
+const cluster=L.markerClusterGroup({maxClusterRadius:45,showCoverageOnHover:false,spiderfyOnMaxZoom:true,
+  iconCreateFunction:c=>{let label;if(F.metric==='vol'){let s=0;c.getAllChildMarkers().forEach(m=>s+=m.options.vol||0);label=fmt(s);}else label=c.getChildCount();
+    return L.divIcon({html:`<div>${label}</div>`,className:'cluster',iconSize:[40,40]});}});
+map.addLayer(cluster);
+
+/* ===== Filtering ===== */
+function ctrlPass(r){
+  if(F.activeOnly&&r.vol<=0)return false;
+  if(r.vol<F.vMin||r.vol>F.vMax)return false;
+  if(F.acc==='exact'&&!r.exact)return false;
+  if(F.acc==='approx'&&r.exact)return false;
+  if(F.states.size&&!F.states.has(r.sc))return false;
+  if(F.area&&!F.area.contains([r.lat,r.lng]))return false;
+  if(F.q){const q=F.q.toLowerCase();if(!((r.city||'').toLowerCase().includes(q)||(r.mail||'').toLowerCase().includes(q)||(r.pin||'').includes(q)||(r.state||'').toLowerCase().includes(q)))return false;}
+  return true;
+}
+let CTRL=[], EFF=[];
+function recompute(){CTRL=DATA.filter(ctrlPass);EFF=F.city?CTRL.filter(r=>r.city===F.city):CTRL;}
+
+function cityAgg(rows){const m=new Map();for(const r of rows){const k=r.city+'|'+r.sc;if(!m.has(k))m.set(k,{city:r.city,sc:r.sc,state:r.state,n:0,vol:0,exact:r.exact});const o=m.get(k);o.n++;o.vol+=r.vol;}return[...m.values()];}
+
+function renderMap(){
+  cluster.clearLayers();for(const k in markerByUid)delete markerByUid[k];
+  const agg=cityAgg(EFF),cm=new Map(agg.map(c=>[c.city+'|'+c.sc,c]));
+  for(const r of EFF){const c=cm.get(r.city+'|'+r.sc);
+    const col=F.metric==='vol'?volColor(r.vol):cntColor(c.n),sz=F.metric==='vol'?volSize(r.vol):cntSize(c.n);
+    const m=L.marker([r.lat,r.lng],{vol:r.vol,uid:r.id,icon:L.divIcon({className:'',html:`<div class="marker-dot" style="width:${sz}px;height:${sz}px;background:${col}"></div>`,iconSize:[sz,sz]})});
+    m.bindPopup(`<div class="pp-city">${r.city}${r.sc?', '+r.sc:''}</div>`+(r.mail?`<div class="pp-mail">${r.mail}</div>`:'')+
+      `<div class="pp-vol" style="color:${volColor(r.vol)}">Volume ${r.vol.toLocaleString()}</div>`+
+      `<div class="pp-meta">${r.state}${r.pin?' · PIN '+r.pin:''}</div><div class="pp-addr">${r.addr}</div>`+
+      `<span class="pp-tag ${r.exact?'exact':'approx'}">${r.exact?'city-matched':'approx · PIN region'}</span>`);
+    cluster.addLayer(m);markerByUid[r.id]=m;}
+}
+function renderChips(){
+  const totVol=EFF.reduce((s,r)=>s+r.vol,0),cities=new Set(EFF.map(r=>r.city)),states=new Set(EFF.map(r=>r.sc).filter(Boolean));
+  const grand=DATA.reduce((s,r)=>s+r.vol,0);
+  document.getElementById('chips').innerHTML=
+    `<div class="chip"><b style="color:var(--accent)">${totVol.toLocaleString()}</b><span>Volume (${grand?Math.round(totVol/grand*100):0}% of all)</span></div>`+
+    `<div class="chip"><b>${EFF.length.toLocaleString()}</b><span>Sellers</span></div>`+
+    `<div class="chip"><b>${cities.size}</b><span>Cities</span></div>`+
+    `<div class="chip"><b>${states.size}</b><span>States</span></div>`;
+}
+function renderList(){
+  document.getElementById('listLbl').textContent = view==='cities'?(F.metric==='vol'?'Cities by total volume':'Cities by seller count'):'All filtered sellers';
+  const el=document.getElementById('list');
+  if(view==='cities'){
+    let cc=cityAgg(CTRL);cc.sort((a,b)=>F.metric==='vol'?(b.vol-a.vol||b.n-a.n):(b.n-a.n||b.vol-a.vol));
+    document.getElementById('listCount').textContent=cc.length+' cities';
+    const maxV=Math.max(...cc.map(c=>F.metric==='vol'?c.vol:c.n),1);
+    el.innerHTML=cc.map((c,i)=>{const planned=plan.has(c.city),val=F.metric==='vol'?c.vol:c.n,w=Math.max(3,Math.round(val/maxV*100));
+      return `<div class="city ${F.city===c.city?'active':''} ${planned?'planned':''}" data-city="${c.city}">
+        <div class="rank">${i+1}</div><div class="main"><div class="name">${c.city}</div><div class="sub">${c.state}${c.exact?'':' · approx'}</div>
+        <div class="bar" style="width:${w}%;background:${F.metric==='vol'?'var(--accent)':cntColor(c.n)}"></div></div>
+        <div class="right"><span class="metricval">${F.metric==='vol'?c.vol.toLocaleString():c.n}<small>${F.metric==='vol'?c.n+' sell.':c.vol.toLocaleString()+' vol'}</small></span>
+        <button class="add" data-add="${c.city}">${planned?'✓':'+'}</button></div></div>`;}).join('')||emptyMsg();
+    el.querySelectorAll('.city').forEach(row=>row.onclick=e=>{if(e.target.closest('.add'))return;openCity(row.dataset.city);});
+    el.querySelectorAll('.add').forEach(b=>b.onclick=e=>{e.stopPropagation();togglePlan(b.dataset.add);});
+  }else{
+    const rows=[...EFF].sort((a,b)=>b.vol-a.vol);
+    document.getElementById('listCount').textContent=rows.length+' sellers';
+    el.innerHTML=rows.slice(0,2000).map(r=>`<div class="srow" data-id="${r.id}">
+      <div class="srow-main"><div class="srow-mail ${r.mail?'':'none'}">${r.mail||'no email'}</div><div class="srow-sub">${r.city}, ${r.sc} · ${r.pin||'—'}</div></div>
+      <span class="srow-vol" style="color:${volColor(r.vol)}">${r.vol.toLocaleString()}</span>
+      <button class="srow-loc" data-id="${r.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 1118 0z"/><circle cx="12" cy="10" r="3"/></svg></button></div>`).join('')||emptyMsg();
+    el.querySelectorAll('.srow-loc').forEach(b=>b.onclick=()=>locate(+b.dataset.id));
+    el.querySelectorAll('.srow-main').forEach((m,i)=>m.onclick=()=>{const id=+m.closest('.srow').dataset.id;const r=DATA.find(x=>x.id===id);if(r&&r.mail)copyText(r.mail,'Email copied');});
+  }
+}
+function emptyMsg(){return `<div class="plan-empty">No sellers match these filters.</div>`;}
+
+/* ===== City drill-down ===== */
+function openCity(city){F.city=city;showCityChip();recompute();renderAll();
+  fitTo(EFF,11);
+  const rows=[...EFF].sort((a,b)=>b.vol-a.vol);if(!rows.length)return;
+  const tv=rows.reduce((s,r)=>s+r.vol,0),emails=rows.map(r=>r.mail).filter(Boolean);
+  document.getElementById('dtCity').textContent=city;
+  document.getElementById('dtSub').textContent=`${rows[0].state} · ${rows.length} seller${rows.length>1?'s':''} · ${tv.toLocaleString()} volume`;
+  const cb=document.getElementById('copyAll');cb.textContent=`Copy emails (${emails.length})`;cb.onclick=()=>emails.length&&copyText(emails.join('\n'),`Copied ${emails.length} emails`);
+  document.getElementById('dlCity').onclick=()=>download(rows,'csv','city_'+city.replace(/\W+/g,'_'));
+  document.getElementById('detailList').innerHTML=rows.map(r=>`<div class="srow" data-id="${r.id}">
+    <div class="srow-main" data-mail="${r.mail?encodeURIComponent(r.mail):''}"><div class="srow-mail ${r.mail?'':'none'}">${r.mail||'no email'}</div><div class="srow-sub">PIN ${r.pin||'—'}${r.exact?'':' · approx'}</div></div>
+    <span class="srow-vol" style="color:${volColor(r.vol)}">${r.vol.toLocaleString()}</span>
+    <button class="srow-loc" data-id="${r.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 1118 0z"/><circle cx="12" cy="10" r="3"/></svg></button></div>`).join('');
+  document.querySelectorAll('#detailList .srow-main').forEach(el=>el.onclick=()=>{const m=el.dataset.mail;if(m)copyText(decodeURIComponent(m),'Email copied');});
+  document.querySelectorAll('#detailList .srow-loc').forEach(b=>b.onclick=()=>locate(+b.dataset.id));
+  document.querySelector('.rail').classList.add('detail-open');
+}
+function closeCity(){F.city=null;document.getElementById('cityChip').style.display='none';document.querySelector('.rail').classList.remove('detail-open');recompute();renderAll();}
+document.getElementById('detailBack').onclick=closeCity;
+function showCityChip(){const c=document.getElementById('cityChip');c.style.display='';c.innerHTML=`City: ${F.city} <span class="x">✕</span>`;c.querySelector('.x').onclick=closeCity;}
+function showAreaChip(){const c=document.getElementById('areaChip');if(!F.area){c.style.display='none';return;}c.style.display='';c.innerHTML=`Map area <span class="x">✕</span>`;c.querySelector('.x').onclick=clearArea;}
+function clearArea(){F.area=null;drawn.clearLayers();showAreaChip();applyFilters();}
+
+/* ===== Plan ===== */
+function togglePlan(city){const a=cityAgg(DATA).find(c=>c.city===city)||{n:0,vol:0};if(plan.has(city))plan.delete(city);else plan.set(city,{n:a.n,vol:a.vol});renderList();renderPlan();}
+function renderPlan(){document.getElementById('planBadge').textContent=plan.size;const body=document.getElementById('planBody');
+  if(!plan.size){body.innerHTML=`<div class="plan-empty">Tap + on cities to build a route ranked by the volume you'd cover.</div>`;return;}
+  const items=[...plan.entries()].sort((a,b)=>b[1].vol-a[1].vol),tv=items.reduce((s,[,o])=>s+o.vol,0),tn=items.reduce((s,[,o])=>s+o.n,0);
+  body.innerHTML=items.map(([c,o],i)=>`<div class="plan-row"><span><b style="font-family:'JetBrains Mono',monospace">${i+1}.</b> ${c} <span style="color:var(--muted)">· ${o.vol.toLocaleString()} vol · ${o.n}</span></span><span class="x" data-rm="${c}">✕</span></div>`).join('')+
+    `<div class="plan-row" style="font-weight:600"><span>${plan.size} cities · ${tn} sellers</span><span style="font-family:'JetBrains Mono',monospace;color:var(--accent)">${tv.toLocaleString()} vol</span></div>`+
+    `<div class="plan-foot"><button class="btn" id="clearPlan">Clear</button><button class="btn primary" id="dlPlan" style="flex:1;justify-content:center">Download plan sellers</button></div>`;
+  body.querySelectorAll('[data-rm]').forEach(x=>x.onclick=()=>{plan.delete(x.dataset.rm);renderList();renderPlan();});
+  document.getElementById('clearPlan').onclick=()=>{plan.clear();renderList();renderPlan();};
+  document.getElementById('dlPlan').onclick=()=>{const cs=new Set(plan.keys());download(DATA.filter(r=>cs.has(r.city)),'csv','visit_plan');};
+}
+
+/* ===== Download ===== */
+const COLS=[['mail','Email'],['addr','Address'],['city','City'],['state','State'],['sc','State Code'],['pin','PIN'],['vol','Volume'],['lat','Latitude'],['lng','Longitude'],['exact','Location Match']];
+function rowsToObjects(rows){return rows.map(r=>{const o={};COLS.forEach(([k,h])=>o[h]=k==='exact'?(r.exact?'Exact':'Approx (PIN)'):r[k]);return o;});}
+function download(rows,kind,name){
+  if(!rows.length){toast('Nothing to download for current filters');return;}
+  const objs=rowsToObjects(rows);const stamp=new Date().toISOString().slice(0,10);
+  if(kind==='xlsx'){const ws=XLSX.utils.json_to_sheet(objs);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Sellers');XLSX.writeFile(wb,`${name}_${stamp}.xlsx`);}
+  else{const head=COLS.map(c=>c[1]);const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+    const lines=[head.join(',')].concat(objs.map(o=>head.map(h=>esc(o[h])).join(',')));
+    const blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${name}_${stamp}.csv`;a.click();}
+  toast(`Downloaded ${rows.length} sellers`);
+}
+document.getElementById('dlCsv').onclick=()=>download(EFF,'csv','sellers_filtered');
+document.getElementById('dlXlsx').onclick=()=>download(EFF,'xlsx','sellers_filtered');
+
+/* ===== helpers ===== */
+function locate(uid){const m=markerByUid[uid];if(m)cluster.zoomToShowLayer(m,()=>m.openPopup());else{const r=DATA.find(x=>x.id===uid);if(r){map.flyTo([r.lat,r.lng],12);}}}
+function fitTo(pts,mz){if(!pts.length)return;const b=L.latLngBounds(pts.map(p=>[p.lat,p.lng]));map.fitBounds(b.pad(0.2),{maxZoom:mz||9});}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
+function copyText(txt,msg){if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(()=>toast(msg)).catch(()=>fb(txt,msg));else fb(txt,msg);}
+function fb(txt,msg){const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast(msg);}catch(e){toast('Copy failed');}document.body.removeChild(ta);}
+function renderLegend(){const ap=EFF.filter(r=>!r.exact).length;
+  const note=ap?`<div class="approx-note">${ap} shown at PIN-region level (city not in precise lookup).</div>`:'';
+  document.getElementById('legend').innerHTML=F.metric==='vol'
+    ?`<div class="lh">Volume / seller</div><div class="row"><i style="background:#cbd2dd"></i>0</div><div class="row"><i style="background:#ffd2bc"></i>1–99</div><div class="row"><i style="background:#ff9d6e"></i>100–499</div><div class="row"><i style="background:#ff5a1f"></i>500–1,999</div><div class="row"><i style="background:#c8340a"></i>2,000+</div>${note}`
+    :`<div class="lh">Sellers / location</div><div class="row"><i style="background:#ffb892"></i>1–2</div><div class="row"><i style="background:#ff9d6e"></i>3–9</div><div class="row"><i style="background:#ff5a1f"></i>10–24</div><div class="row"><i style="background:#c8340a"></i>25+</div>${note}`;}
+
+function renderAll(){renderMap();renderChips();renderList();renderLegend();document.getElementById('emptyState').style.display=DATA.length?'none':'flex';}
+function applyFilters(){recompute();renderAll();}
+
+/* ===== States menu ===== */
+function buildStates(){const counts={};DATA.forEach(r=>{if(r.sc){counts[r.sc]=counts[r.sc]||{n:0,vol:0};counts[r.sc].n++;counts[r.sc].vol+=r.vol;}});
+  const order=Object.entries(counts).sort((a,b)=>b[1].vol-a[1].vol);const menu=document.getElementById('statesMenu');
+  menu.innerHTML=order.map(([sc,v])=>`<span class="stpill ${F.states.has(sc)?'on':''}" data-st="${sc}">${sc} ${fmt(v.vol)}</span>`).join('');
+  menu.querySelectorAll('.stpill').forEach(p=>p.onclick=()=>{const sc=p.dataset.st;if(F.states.has(sc))F.states.delete(sc);else F.states.add(sc);
+    p.classList.toggle('on');updateStatesLabel();applyFilters();});
+  updateStatesLabel();}
+function updateStatesLabel(){document.getElementById('statesToggle').textContent=F.states.size?`States: ${F.states.size} ▾`:'States: All ▾';}
+
+/* ===== Controls wiring ===== */
+document.getElementById('search').addEventListener('input',e=>{F.q=e.target.value.trim();applyFilters();});
+document.getElementById('metric').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;F.metric=b.dataset.m;
+  document.querySelectorAll('#metric button').forEach(x=>x.classList.toggle('on',x===b));buildStates();applyFilters();});
+document.getElementById('acc').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;F.acc=b.dataset.a;
+  document.querySelectorAll('#acc button').forEach(x=>x.classList.toggle('on',x===b));applyFilters();});
+document.getElementById('activeOnly').addEventListener('change',e=>{F.activeOnly=e.target.checked;applyFilters();});
+const vMin=document.getElementById('vMin'),vMax=document.getElementById('vMax');
+function setVolUI(){vMin.max=maxVol;vMax.max=maxVol;vMin.value=F.vMin;vMax.value=F.vMax;document.getElementById('vVal').textContent=`${(+F.vMin).toLocaleString()} – ${(+F.vMax).toLocaleString()}`;}
+function volChanged(){let mn=+vMin.value,mx=+vMax.value;if(mn>mx){if(this===vMin)mx=mn;else mn=mx;}F.vMin=mn;F.vMax=mx;vMin.value=mn;vMax.value=mx;
+  document.getElementById('vVal').textContent=`${mn.toLocaleString()} – ${mx.toLocaleString()}`;applyFilters();}
+vMin.addEventListener('input',volChanged);vMax.addEventListener('input',volChanged);
+const sBtn=document.getElementById('statesBtn');
+document.getElementById('statesToggle').onclick=()=>sBtn.classList.toggle('open');
+document.addEventListener('click',e=>{if(!sBtn.contains(e.target))sBtn.classList.remove('open');});
+document.getElementById('areaBtn').onclick=function(){if(F.area){clearArea();return;}this.classList.add('on');drawer.enable();toast('Drag a box on the map');};
+document.getElementById('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;view=b.dataset.t;
+  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  if(F.city)closeCity();else renderList();});
+const planEl=document.getElementById('plan');
+document.getElementById('planHead').onclick=()=>{planEl.classList.toggle('open');document.getElementById('planChevron').textContent=planEl.classList.contains('open')?'▾':'▴';};
+document.getElementById('resetBtn').onclick=()=>{F.q='';F.metric='vol';F.activeOnly=false;F.acc='all';F.states.clear();F.area=null;F.city=null;F.vMin=0;F.vMax=maxVol;
+  drawn.clearLayers();document.getElementById('search').value='';document.getElementById('activeOnly').checked=false;
+  document.querySelectorAll('#metric button').forEach(x=>x.classList.toggle('on',x.dataset.m==='vol'));
+  document.querySelectorAll('#acc button').forEach(x=>x.classList.toggle('on',x.dataset.a==='all'));
+  document.getElementById('cityChip').style.display='none';document.getElementById('areaChip').style.display='none';
+  document.querySelector('.rail').classList.remove('detail-open');setVolUI();buildStates();applyFilters();map.setView([22.5,80],5);};
+document.getElementById('uploadBtn').onclick=()=>document.getElementById('fileInput').click();
+document.getElementById('emptyUpload').onclick=()=>document.getElementById('fileInput').click();
+function loadFile(f){if(!f)return;const rd=new FileReader();
+  rd.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array'});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+    const built=buildFromRows(rows);if(!built.length){toast('No usable addresses found — need an "Address" column');return;}
+    DATA=built;DATA.forEach((r,i)=>r.id=i);maxVol=Math.max(...DATA.map(r=>r.vol),1);plan.clear();
+    F.q='';F.activeOnly=false;F.acc='all';F.states.clear();F.area=null;F.city=null;F.vMin=0;F.vMax=maxVol;drawn.clearLayers();
+    document.getElementById('search').value='';document.getElementById('activeOnly').checked=false;document.querySelector('.rail').classList.remove('detail-open');
+    document.getElementById('cityChip').style.display='none';document.getElementById('areaChip').style.display='none';
+    document.querySelectorAll('#acc button').forEach(x=>x.classList.toggle('on',x.dataset.a==='all'));
+    setVolUI();buildStates();applyFilters();renderPlan();fitTo(DATA);toast(`Loaded ${built.length} sellers from ${f.name}`);
+  }catch(err){toast('Could not read that file');console.error(err);}};rd.readAsArrayBuffer(f);}
+document.getElementById('fileInput').addEventListener('change',ev=>loadFile(ev.target.files[0]));
+/* drag & drop anywhere */
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();document.body.classList.add('dragging');}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||e.relatedTarget===null)document.body.classList.remove('dragging');}));
+document.addEventListener('drop',e=>{e.preventDefault();document.body.classList.remove('dragging');if(e.dataTransfer.files&&e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
+
+/* ===== Init ===== */
+F.vMax=maxVol;setVolUI();buildStates();applyFilters();renderPlan();
+</script>
+</body>
+</html>
